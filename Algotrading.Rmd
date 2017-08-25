@@ -1,0 +1,97 @@
+---
+title: "AlgoTrading"
+author: "Amy"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+<style type="text/css">
+
+h1.title {
+  font-size: 38px;
+  color: DarkRed;
+  text-align: center;
+}
+h4.author { /* Header 4 - and the author and data headers use this too  */
+    font-size: 18px;
+  font-family: "Times New Roman", Times, serif;
+  color: DarkRed;
+  text-align: center;
+}
+h4.date { /* Header 4 - and the author and data headers use this too  */
+  font-size: 18px;
+  font-family: "Times New Roman", Times, serif;
+  color: DarkBlue;
+  text-align: center;
+}
+</style>
+
+
+### Amy's first algorithic trading program. More complicated algo is coming soon...
+
+#### Testing on Amy's toy stocks FB, AMZN and AMD
+```{r setup, include=FALSE,results='hide',message=F}
+knitr::opts_chunk$set(echo = F,comment=NA,message=F,warning=F)
+
+library(xts)
+library(dygraphs)
+library(TTR)
+library(BatchGetSymbols,quietly = T)
+library(tidyverse)
+#https://cran.r-project.org/web/packages/BatchGetSymbols/vignettes/BatchGetSymbols-vignette.html
+```
+**1. Static and Dynamic views of stock prices for the 3 years**
+```{r}
+
+first.date <- Sys.Date()-365*3
+last.date <- Sys.Date()
+
+tickers <- c('FB','AMZN','AMD')
+
+l.out <- BatchGetSymbols(tickers = tickers,
+                         first.date = first.date,
+                         last.date = last.date)
+
+ 
+p <- ggplot(l.out$df.tickers, aes(x = ref.date, y = price.close))
+p <- p + geom_line()
+p <- p + facet_wrap(~ticker, scales = 'free_y') +theme_bw()
+print(p)
+
+data=l.out$df.tickers
+dxts=xts(select(data,-ref.date),order.by=data$ref.date)
+
+dygraph(dxts[dxts$ticker=="FB",]$price.close, main = "FB Stock Price") %>%
+  dyRangeSelector(dateWindow = c("2017-06-18", "2017-07-30"))
+
+dygraph(dxts[dxts$ticker=="AMZN",]$price.close, main = "AMZN Stock Price") %>%
+  dyRangeSelector(dateWindow = c("2017-06-18", "2017-07-30"))
+
+dygraph(dxts[dxts$ticker=="AMD",]$price.close, main = "AMD Stock Price") %>%
+  dyRangeSelector(dateWindow = c("2017-06-18", "2017-07-30"))
+```
+
+**2. A Simple Trading Strategy: Trend Following**
+
+Basic ideas: Basically, you would want to calculate the 200 day and 50 day moving averages for a stock price.On any given day that the 50 day moving average is above the 200 day moving average, you would buy or hold your position. On days where the 200 day average is more than the 50 day moving average, you would sell your shares. 
+
+
+
+```{r}
+# https://www.datacamp.com/community/tutorials/r-trading-tutorial#gs.SV0psHw
+fb200=(SMA(filter(data,ticker=="FB")%>%select(price.close), 200))
+fb50=(SMA(filter(data,ticker=="FB")%>%select(price.close), 50))
+fbdata=cbind(dxts[dxts$ticker=="FB",],fb200,fb50)
+dygraph(fbdata[,c('..2','..3')],main = 'FB Moving Averages') %>%
+  dySeries('..2', label = 'FB 50') %>%
+  dySeries('..3', label = 'FB 200') %>%
+  dyRangeSelector(height = 30) %>%
+  dyShading(from = '2017-1-06', to = '2017-1-30', color = '#CCEBD6') #%>%
+  #dyShading(from = '2017-7-28', to = '2017-8-20', color = '#FFE6E6')
+```
+
+###Conclusion
+
+You would want to run the code every day and add a programmatic way to identify stocks that fit the rule based method, **"buy if the 50 day moving average is above the 200 day moving average"**. As you review the preceding chart, the green section is a time in which you would buy the FB equity. The red section represents the time to sell your shares and not reenter.
+
+Since the graph is interactive, you can use the slider to resize the visual. Based on this simple algo trading approach, now may be a good time to sell FB. Aug 25, 2017 was a trading day where the 50 day moving average moved lower than the 200 day moving average.
